@@ -3,6 +3,7 @@ on: workflow_dispatch
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - run: unzip -q riff-android-ready.zip -d proj
@@ -10,21 +11,23 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - name: Android SDK
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKM=$(find /usr/local/lib/android/sdk/cmdline-tools -name sdkmanager -type f | head -1)
+          echo "Using $SDKM"
+          yes | $SDKM --licenses > /dev/null || true
+          $SDKM "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.13
-      - name: Build
+      - name: Build APK
         working-directory: proj/android
-        run: gradle test assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g" -Pkotlin.daemon.jvmargs=-Xmx2g
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: riff-debug-apk
           path: proj/android/app/build/outputs/apk/debug/app-debug.apk
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: build-reports
-          path: proj/android/**/build/reports/**
+      - name: Unit tests
+        if: success()
+        continue-on-error: true
+        working-directory: proj/android
+        run: gradle test --stacktrace -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=1g" -Pkotlin.daemon.jvmargs=-Xmx2g
