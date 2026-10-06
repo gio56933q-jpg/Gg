@@ -1,0 +1,27 @@
+name: Android
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q riff-android-ready.zip -d proj
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.13
+      - name: Build
+        working-directory: proj/android
+        run: gradle test assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: riff-debug-apk
+          path: proj/android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-reports
+          path: proj/android/**/build/reports/**
